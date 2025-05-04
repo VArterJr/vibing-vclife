@@ -39,6 +39,7 @@ class Game {
         this.initializeSpecies(speciesCount);
         this.placeBondedPairs();
         
+        this.ui.logEvent(`Game started with ${speciesCount} species`);
         this.gameInterval = window.setInterval(() => this.gameLoop(), 500);
     }
     
@@ -46,10 +47,12 @@ class Game {
         this.species = [];
         
         for (let i = 0; i < count; i++) {
-            this.species.push(new Species());
+            const newSpecies = new Species();
+            this.species.push(newSpecies);
+            this.ui.logEvent(`Created ${newSpecies.name} (${newSpecies.symbol}) with max lifespan of ${newSpecies.maxLifespan}`);
         }
     }
-    
+                    
     private placeBondedPairs(): void {
         this.lifeForms = [];
         
@@ -70,9 +73,11 @@ class Game {
                 
                 species.totalSingles += 2; // They start as singles
                 lifeForm1.bondWith(lifeForm2); // Then bond them
+                
+                this.ui.logEvent(`Created bonded pair of ${species.name} (${species.symbol}) at position (${x},${y})`);
             }
         }
-        
+
         this.ui.updateGameField(this.lifeForms);
         this.ui.updateStats(this.species, this.totalCycles);
     }
@@ -81,6 +86,7 @@ class Game {
         if (this.isPaused) return;
         
         this.totalCycles++;
+        this.ui.logEvent(`--- Year / Iteration ${this.totalCycles} ---`);
         
         // Process births
         this.processBirths();
@@ -125,6 +131,8 @@ class Game {
                     offspring.bondedToParent = lifeForm;
                     
                     newLifeForms.push(offspring);
+                    
+                    this.ui.logEvent(`${lifeForm.species.name} (${lifeForm.species.symbol}) gave birth at (${x},${y})`);
                 }
             }
         }
@@ -157,6 +165,8 @@ class Game {
                     if (x !== -1 && y !== -1) {
                         const mutatedLifeForm = new LifeForm(newSpecies, x, y);
                         newLifeForms.push(mutatedLifeForm);
+                        
+                        this.ui.logEvent(`MUTATION: ${lifeForm.species.name} (${lifeForm.species.symbol}) and ${otherLifeForm.species.name} (${otherLifeForm.species.symbol}) created new species ${newSpecies.name} (${newSpecies.symbol})`);
                     }
                 }
             }
@@ -186,6 +196,8 @@ class Game {
                         lifeForm.bondedWith.x = Math.floor(Math.random() * this.fieldWidth);
                         lifeForm.bondedWith.y = Math.floor(Math.random() * this.fieldHeight);
                     }
+                    
+                    this.ui.logEvent(`${lifeForm.species.name} (${lifeForm.species.symbol}) pair unbonded`);
                 }
                 // Check for movement
                 else if (lifeForm.shouldMove()) {
@@ -199,6 +211,8 @@ class Game {
                     // Move bonded partner together
                     const newX2 = Math.max(0, Math.min(this.fieldWidth - 1, lifeForm.bondedWith.x + dx));
                     const newY2 = Math.max(0, Math.min(this.fieldHeight - 1, lifeForm.bondedWith.y + dy));
+                    
+                    this.ui.logEvent(`${lifeForm.species.name} (${lifeForm.species.symbol}) pair moved from (${lifeForm.x},${lifeForm.y}) to (${newX1},${newY1})`);
                     
                     lifeForm.x = newX1;
                     lifeForm.y = newY1;
@@ -219,6 +233,7 @@ class Game {
             
             // Check if the life form should die
             if (lifeForm.age >= lifeForm.species.maxLifespan || lifeForm.shouldDie()) {
+                this.ui.logEvent(`${lifeForm.species.name} (${lifeForm.species.symbol}) died at age ${lifeForm.age} at position (${lifeForm.x},${lifeForm.y})`);
                 lifeForm.die();
             } else {
                 survivingLifeForms.push(lifeForm);
@@ -228,9 +243,14 @@ class Game {
         this.lifeForms = survivingLifeForms;
         
         // Remove species with no life forms
+        const beforeCount = this.species.length;
         this.species = this.species.filter(species => 
             this.lifeForms.some(lifeForm => lifeForm.species.id === species.id)
         );
+        
+        if (beforeCount > this.species.length) {
+            this.ui.logEvent(`${beforeCount - this.species.length} species went extinct`);
+        }
     }
     
     private processRandomEvents(): void {
@@ -255,6 +275,8 @@ class Game {
         // Create 5-10 new life forms of the selected species
         const count = Math.floor(Math.random() * 6) + 5;
         
+        this.ui.logEvent(`BIRTH EXPLOSION: ${randomSpecies.name} (${randomSpecies.symbol}) is experiencing a birth explosion! ${count} new life forms created.`);
+        
         for (let i = 0; i < count; i++) {
             const x = Math.floor(Math.random() * this.fieldWidth);
             const y = Math.floor(Math.random() * this.fieldHeight);
@@ -274,14 +296,21 @@ class Game {
         
         // Kill 50-80% of the life forms of the selected species
         const deathRate = Math.random() * 0.3 + 0.5;
+        const speciesCount = this.lifeForms.filter(lf => lf.species.id === randomSpecies.id).length;
+        let deathCount = 0;
+        
+        this.ui.logEvent(`DEATH EVENT: ${randomSpecies.name} (${randomSpecies.symbol}) is experiencing a mass extinction!`);
         
         this.lifeForms = this.lifeForms.filter(lifeForm => {
             if (lifeForm.species.id === randomSpecies.id && Math.random() < deathRate) {
                 lifeForm.die();
+                deathCount++;
                 return false;
             }
             return true;
         });
+        
+        this.ui.logEvent(`DEATH EVENT: ${deathCount} out of ${speciesCount} ${randomSpecies.name} (${randomSpecies.symbol}) life forms died`);
     }
     
     private findNearbyEmptySpace(x: number, y: number): number {
@@ -321,25 +350,4 @@ class Game {
     
     private togglePause(): void {
         this.isPaused = !this.isPaused;
-        this.ui.setPauseButtonState(this.isPaused);
-    }
-    
-    private resetGame(): void {
-        if (this.gameInterval !== null) {
-            clearInterval(this.gameInterval);
-            this.gameInterval = null;
-        }
-        
-        this.species = [];
-        this.lifeForms = [];
-        this.totalCycles = 0;
-        this.isPaused = false;
-        
-        this.ui.showSetupPanel();
-    }
-}
-
-// Initialize the game when the DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    new Game();
-});
+        this.ui.setPauseButtonState(this

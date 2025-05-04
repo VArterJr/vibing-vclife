@@ -1,13 +1,22 @@
 {
   "compilerOptions": {
     "target": "es6",
-    "module": "commonjs",
-    "outDir": "./dist",
+    "module": "none",
+    "outFile": "./dist/game-combined.js",
     "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*"]
+  "files": [
+    "src/lifeform.ts",
+    "src/species.ts",
+    "src/ui.ts",
+    "src/game_core.ts",
+    "src/game_lifecycle.ts",
+    "src/game_mutations.ts",
+    "src/game_events.ts",
+    "src/game_utils.ts"
+  ]
 }

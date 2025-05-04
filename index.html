@@ -22,7 +22,17 @@
         </div>
         
         <div class="game-container" id="game-container" style="display: none;">
-            <div class="game-field" id="game-field"></div>
+            <div class="left-panel" id="left-panel">
+                <h2>Game Info</h2>
+                <div id="game-info-content"></div>
+            </div>
+            <div class="game-field-container">
+                <div class="game-field" id="game-field"></div>
+                <div class="event-log" id="event-log">
+                    <h3>Event Log</h3>
+                    <div id="event-log-content"></div>
+                </div>
+            </div>
             <div class="stats-panel" id="stats-panel">
                 <h2>Statistics</h2>
                 <div id="stats-content"></div>
@@ -33,12 +43,13 @@
             <button id="pause-resume" style="display: none;">Pause</button>
             <button id="reset-game" style="display: none;">Reset Game</button>
         </div>
+
+        <footer>
+            <p>Last Updated: <span id="last-updated"></span></p>
+        </footer>
     </div>
 
-    <!-- Scripts -->
-    <script src="dist/lifeform.js"></script>
-    <script src="dist/species.js"></script>
-    <script src="dist/ui.js"></script>
-    <script src="dist/game.js"></script>
+    <!-- Single combined script instead of multiple scripts -->
+    <script src="dist/game-combined.js"></script>
 </body>
 </html>
