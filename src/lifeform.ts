@@ -12,6 +12,8 @@ class LifeForm {
     public state: LifeFormState = LifeFormState.SINGLE;
     public bondedWith: LifeForm | null = null;
     public bondedToParent: LifeForm | null = null;
+    public recentlyUnbonded: LifeForm | null = null; // Track recently unbonded partner
+    public isOffspring: boolean = false;
     
     constructor(species: Species, x: number, y: number) {
         this.species = species;
@@ -74,8 +76,13 @@ class LifeForm {
         this.species.totalDied++;
         this.species.sumAgeAtDeath += this.age;
         
+        // Update offspring statistics if this is an offspring
+        if (this.isOffspring) {
+            this.species.totalOffspringDied++;
+        }
+        
         if (this.state === LifeFormState.BONDED_PAIR) {
-            this.species.totalBondedPairs--;
+            this.species.totalUnbondedPairs++;
             
             // Update the bonded partner
             if (this.bondedWith) {
@@ -85,7 +92,15 @@ class LifeForm {
             }
         } else if (this.state === LifeFormState.SINGLE) {
             this.species.totalSingles--;
+        } else if (this.state === LifeFormState.BONDED_TO_PARENT) {
+            // Handle death of offspring bonded to parent
+            if (this.bondedToParent) {
+                this.bondedToParent.bondedToParent = null;
+            }
         }
+        
+        // Clear the recently unbonded reference
+        this.recentlyUnbonded = null;
     }
     
     public bondWith(other: LifeForm): void {
@@ -103,14 +118,24 @@ class LifeForm {
     
     public unbond(): void {
         if (this.state === LifeFormState.BONDED_PAIR && this.bondedWith) {
+            // Store reference to the partner that's being unbonded
+            this.recentlyUnbonded = this.bondedWith;
+            this.bondedWith.recentlyUnbonded = this;
+            
+            // Update state
             this.bondedWith.bondedWith = null;
             this.bondedWith.state = LifeFormState.SINGLE;
             this.bondedWith = null;
             this.state = LifeFormState.SINGLE;
             
-            this.species.totalBondedPairs--;
+            this.species.totalUnbondedPairs++;
             this.species.totalSingles += 2;
         }
+    }
+    
+    public clearRecentlyUnbonded(): void {
+        // Clear the recently unbonded reference after one cycle
+        this.recentlyUnbonded = null;
     }
     
     public shouldUnbond(): boolean {
@@ -146,6 +171,43 @@ class LifeForm {
         
         // 1-50% chance of spawning offspring
         return Math.random() < 0.5;
+    }
+    
+    public createOffspring(x: number, y: number): LifeForm {
+        // Create a new life form of the same species
+        const offspring = new LifeForm(this.species, x, y);
+        
+        // Mark as offspring and bond to parent
+        offspring.isOffspring = true;
+        offspring.state = LifeFormState.BONDED_TO_PARENT;
+        offspring.bondedToParent = this;
+        
+        // Update species statistics
+        this.species.totalOffspring++;
+        
+        return offspring;
+    }
+    
+    public unbondFromParent(): boolean {
+        // Only unbond if in second 20% of life
+        if (this.state === LifeFormState.BONDED_TO_PARENT && 
+            this.bondedToParent && 
+            this.getAgePercentage() >= 0.2) {
+            
+            // Update parent's reference
+            if (this.bondedToParent.bondedToParent === this) {
+                this.bondedToParent.bondedToParent = null;
+            }
+            
+            // Update own state
+            this.bondedToParent = null;
+            this.state = LifeFormState.SINGLE;
+            this.species.totalSingles++;
+            
+            return true;
+        }
+        
+        return false;
     }
     
     public canMutate(otherLifeForms: LifeForm[]): [boolean, LifeForm | null] {

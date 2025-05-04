@@ -12,7 +12,10 @@
   "files": [
     "src/lifeform.ts",
     "src/species.ts",
-    "src/ui.ts",
+    "src/ui_base.ts",
+    "src/ui_game_field.ts",
+    "src/ui_stats.ts",
+    "src/ui_events.ts",
     "src/game_core.ts",
     "src/game_lifecycle.ts",
     "src/game_mutations.ts",

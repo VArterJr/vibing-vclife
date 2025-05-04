@@ -19,7 +19,7 @@ Game.prototype.processDeathsAndAging = function(): void {
         
         // Check if the life form should die
         if (lifeForm.age >= lifeForm.species.maxLifespan || lifeForm.shouldDie()) {
-            this.ui.logEvent(`${lifeForm.species.name} (${lifeForm.species.symbol}) died at age ${lifeForm.age} at position (${lifeForm.x},${lifeForm.y})`);
+            this.ui.logEvent(`${lifeForm.species.name} (${lifeForm.species.emoji || lifeForm.species.symbol}) died at age ${lifeForm.age} at position (${lifeForm.x},${lifeForm.y})`);
             lifeForm.die();
         } else {
             survivingLifeForms.push(lifeForm);
@@ -30,6 +30,17 @@ Game.prototype.processDeathsAndAging = function(): void {
     
     // Remove species with no life forms
     const beforeCount = this.species.length;
+    const extinctSpecies = this.species.filter(species => 
+        !this.lifeForms.some(lifeForm => lifeForm.species.id === species.id)
+    );
+    
+    // Update extinct species count
+    if (extinctSpecies.length > 0) {
+        for (const species of extinctSpecies) {
+            this.ui.logEvent(`Species ${species.name} (${species.emoji || species.symbol}) went extinct`);
+        }
+    }
+    
     this.species = this.species.filter(species => 
         this.lifeForms.some(lifeForm => lifeForm.species.id === species.id)
     );
@@ -61,14 +72,17 @@ Game.prototype.birthExplosion = function(): void {
     // Create 5-10 new life forms of the selected species
     const count = Math.floor(Math.random() * 6) + 5;
     
-    this.ui.logEvent(`BIRTH EXPLOSION: ${randomSpecies.name} (${randomSpecies.symbol}) is experiencing a birth explosion! ${count} new life forms created.`);
+    this.ui.logEvent(`BIRTH EXPLOSION: ${randomSpecies.name} (${randomSpecies.emoji || randomSpecies.symbol}) is experiencing a birth explosion! ${count} new life forms created.`);
     
     for (let i = 0; i < count; i++) {
         const x = Math.floor(Math.random() * this.fieldWidth);
         const y = Math.floor(Math.random() * this.fieldHeight);
         
-        const newLifeForm = new LifeForm(randomSpecies, x, y);
-        newLifeForms.push(newLifeForm);
+        // Check if position is empty
+        if (!this.lifeForms.some(lf => lf.x === x && lf.y === y)) {
+            const newLifeForm = new LifeForm(randomSpecies, x, y);
+            newLifeForms.push(newLifeForm);
+        }
     }
     
     this.lifeForms = [...this.lifeForms, ...newLifeForms];
@@ -85,7 +99,7 @@ Game.prototype.deathEvent = function(): void {
     const speciesCount = this.lifeForms.filter(lf => lf.species.id === randomSpecies.id).length;
     let deathCount = 0;
     
-    this.ui.logEvent(`DEATH EVENT: ${randomSpecies.name} (${randomSpecies.symbol}) is experiencing a mass extinction!`);
+    this.ui.logEvent(`DEATH EVENT: ${randomSpecies.name} (${randomSpecies.emoji || randomSpecies.symbol}) is experiencing a mass extinction!`);
     
     this.lifeForms = this.lifeForms.filter(lifeForm => {
         if (lifeForm.species.id === randomSpecies.id && Math.random() < deathRate) {
@@ -96,5 +110,5 @@ Game.prototype.deathEvent = function(): void {
         return true;
     });
     
-    this.ui.logEvent(`DEATH EVENT: ${deathCount} out of ${speciesCount} ${randomSpecies.name} (${randomSpecies.symbol}) life forms died`);
+    this.ui.logEvent(`DEATH EVENT: ${deathCount} out of ${speciesCount} ${randomSpecies.name} (${randomSpecies.emoji || randomSpecies.symbol}) life forms died`);
 };

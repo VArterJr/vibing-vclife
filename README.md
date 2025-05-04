@@ -18,8 +18,8 @@ This project's design and ideas are all mine, but as a professional programmer a
   
 ## Features
 - Multiple species with unique characteristics
-- Life forms represented by different ASCII characters
-- Age-based coloring system (white → light blue → green → orange → red)
+- Life forms represented by different emoji characters
+- Age-based coloring system (white → light blue → green → orange → red) - May not be working with emoji.
 - Bonded pairs that move and reproduce together
 - Mutations when different species interact
 - Random events like birth explosions and mass extinctions
@@ -88,6 +88,7 @@ tsc
 The major prompts I'm using are in the folder `prompts`.
 * `prompts/100-initial-setup.md` - Initial setup of the project structure and basic game functionality.
 * `prompts/101-basic-refinements.md` - Refinements to the basic game functionality, including species, life forms, and game mechanics.
+* `prompts/102-enhancements.md` - Further refinements to the game, including UI improvements and additional game mechanics. Fixed a lot of bugs and layout issues.
 
 ## Possible Future Enhancements
 - Custom species creation UI
@@ -109,5 +110,6 @@ Created with the assistance of AI (actually all of it is AI generated at this po
 - AI assistance for the project structure and code generation from Monica Code (https://monica.im/code) using Antrhopic's Claude 3.7 Sonnet. I find that model to be pretty decent for this type of work.
 
 ## Version History
+* Version 1.0.2 (04-May-2025): `prompts/102-enhancements.md` lists details. Further refinements to the game, including UI improvements and additional game mechanics. Fixed a lot of bugs and layout issues.
 * Version 1.0.1 (04-May-2025): Some minor enhancements and changes as noted in the prompt file `prompts/101-basic-refinements.md`.
 * Version 1.0.0 (04-May-2025): The first committed "version" of the game. This is based on 100% Monica Code AI generation using Anthropic's Claude 3.7 Sonnet. I did the prompts, formatting, and rules and such. Oh and lots of yelling at the AI. But at this point, 100% of the code is AI generated. The initial game is based on the prompts in `prompts/100-initial-setup.md`.

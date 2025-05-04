@@ -49,7 +49,7 @@ class Game {
         for (let i = 0; i < count; i++) {
             const newSpecies = new Species();
             this.species.push(newSpecies);
-            this.ui.logEvent(`Created ${newSpecies.name} (${newSpecies.symbol}) with max lifespan of ${newSpecies.maxLifespan}`);
+            this.ui.logEvent(`Created ${newSpecies.name} (${newSpecies.emoji || newSpecies.symbol}) with max lifespan of ${newSpecies.maxLifespan}`);
         }
     }
 }

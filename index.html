@@ -22,34 +22,40 @@
         </div>
         
         <div class="game-container" id="game-container" style="display: none;">
-            <div class="left-panel" id="left-panel">
-                <h2>Game Info</h2>
-                <div id="game-info-content"></div>
-            </div>
-            <div class="game-field-container">
-                <div class="game-field" id="game-field"></div>
-                <div class="event-log" id="event-log">
-                    <h3>Event Log</h3>
-                    <div id="event-log-content"></div>
+            <div class="side-panels-container">
+                <div class="left-panel" id="left-panel">
+                    <h2>Game Stats</h2>
+                    <div id="game-info-content"></div>
+                    <div class="controls">
+                        <button id="pause-resume">Pause</button>
+                        <button id="reset-game">Reset Game</button>
+                    </div>
+                </div>
+                
+                <div class="main-content">
+                    <div class="game-field-container">
+                        <div class="game-field" id="game-field"></div>
+                        <div class="event-log" id="event-log">
+                            <h3><a name="event-log-anchor">Event Log</a></h3>
+                            <div id="event-log-content"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="stats-panel" id="stats-panel">
+                    <h2>Species Stats</h2>
+                    <div id="stats-content"></div>
                 </div>
             </div>
-            <div class="stats-panel" id="stats-panel">
-                <h2>Statistics</h2>
-                <div id="stats-content"></div>
-            </div>
-        </div>
-        
-        <div class="controls">
-            <button id="pause-resume" style="display: none;">Pause</button>
-            <button id="reset-game" style="display: none;">Reset Game</button>
         </div>
 
         <footer>
             <p>Last Updated: <span id="last-updated"></span></p>
+            <p><a href="#event-log-anchor">Go to Event Log</a></p>
         </footer>
     </div>
 
-    <!-- Single combined script instead of multiple scripts -->
+    <!-- Single combined script -->
     <script src="dist/game-combined.js"></script>
 </body>
 </html>

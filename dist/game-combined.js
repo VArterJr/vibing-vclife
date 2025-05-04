@@ -11,6 +11,8 @@ class LifeForm {
         this.state = LifeFormState.SINGLE;
         this.bondedWith = null;
         this.bondedToParent = null;
+        this.recentlyUnbonded = null; // Track recently unbonded partner
+        this.isOffspring = false;
         this.species = species;
         this.x = x;
         this.y = y;
@@ -69,8 +71,12 @@ class LifeForm {
         // Update species statistics
         this.species.totalDied++;
         this.species.sumAgeAtDeath += this.age;
+        // Update offspring statistics if this is an offspring
+        if (this.isOffspring) {
+            this.species.totalOffspringDied++;
+        }
         if (this.state === LifeFormState.BONDED_PAIR) {
-            this.species.totalBondedPairs--;
+            this.species.totalUnbondedPairs++;
             // Update the bonded partner
             if (this.bondedWith) {
                 this.bondedWith.bondedWith = null;
@@ -81,6 +87,14 @@ class LifeForm {
         else if (this.state === LifeFormState.SINGLE) {
             this.species.totalSingles--;
         }
+        else if (this.state === LifeFormState.BONDED_TO_PARENT) {
+            // Handle death of offspring bonded to parent
+            if (this.bondedToParent) {
+                this.bondedToParent.bondedToParent = null;
+            }
+        }
+        // Clear the recently unbonded reference
+        this.recentlyUnbonded = null;
     }
     bondWith(other) {
         if (this.state === LifeFormState.SINGLE && other.state === LifeFormState.SINGLE) {
@@ -94,13 +108,21 @@ class LifeForm {
     }
     unbond() {
         if (this.state === LifeFormState.BONDED_PAIR && this.bondedWith) {
+            // Store reference to the partner that's being unbonded
+            this.recentlyUnbonded = this.bondedWith;
+            this.bondedWith.recentlyUnbonded = this;
+            // Update state
             this.bondedWith.bondedWith = null;
             this.bondedWith.state = LifeFormState.SINGLE;
             this.bondedWith = null;
             this.state = LifeFormState.SINGLE;
-            this.species.totalBondedPairs--;
+            this.species.totalUnbondedPairs++;
             this.species.totalSingles += 2;
         }
+    }
+    clearRecentlyUnbonded() {
+        // Clear the recently unbonded reference after one cycle
+        this.recentlyUnbonded = null;
     }
     shouldUnbond() {
         // 5% chance of unbonding
@@ -131,6 +153,34 @@ class LifeForm {
         }
         // 1-50% chance of spawning offspring
         return Math.random() < 0.5;
+    }
+    createOffspring(x, y) {
+        // Create a new life form of the same species
+        const offspring = new LifeForm(this.species, x, y);
+        // Mark as offspring and bond to parent
+        offspring.isOffspring = true;
+        offspring.state = LifeFormState.BONDED_TO_PARENT;
+        offspring.bondedToParent = this;
+        // Update species statistics
+        this.species.totalOffspring++;
+        return offspring;
+    }
+    unbondFromParent() {
+        // Only unbond if in second 20% of life
+        if (this.state === LifeFormState.BONDED_TO_PARENT &&
+            this.bondedToParent &&
+            this.getAgePercentage() >= 0.2) {
+            // Update parent's reference
+            if (this.bondedToParent.bondedToParent === this) {
+                this.bondedToParent.bondedToParent = null;
+            }
+            // Update own state
+            this.bondedToParent = null;
+            this.state = LifeFormState.SINGLE;
+            this.species.totalSingles++;
+            return true;
+        }
+        return false;
     }
     canMutate(otherLifeForms) {
         // Check for life forms of different species touching
@@ -171,11 +221,16 @@ class Species {
         this.totalBorn = 0;
         this.totalDied = 0;
         this.totalBondedPairs = 0;
+        this.totalUnbondedPairs = 0;
         this.totalSingles = 0;
+        this.totalOffspring = 0;
+        this.totalOffspringDied = 0;
         this.sumAgeAtDeath = 0;
         this.id = Species.nextId++;
         // Generate a random ASCII character if not provided
         this.symbol = symbol || this.generateRandomSymbol();
+        // Generate a random emoji
+        this.emoji = this.generateRandomEmoji();
         // Generate a random lifespan between 10 and 100 if not provided
         this.maxLifespan = maxLifespan || this.generateRandomLifespan();
         // Generate a simple name based on ID
@@ -185,6 +240,45 @@ class Species {
         // ASCII printable characters (excluding space and control characters)
         const chars = "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
         return chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    generateRandomEmoji() {
+        // Curated array of emoji characters that display properly
+        const emojis = [
+            // Smileys & Emotion
+            "😀", "😃", "😄", "😁", "😆", "😅", "😂", "🤣", "😊", "😇", "🙂", "🙃", "😉", "😌",
+            "😍", "😘", "😗", "😙", "😚", "😋", "😛", "😝", "😜",
+            "😎", "😏", "😒", "😞", "😔", "😟", "😕", "🙁", "☹️", "😣", "😖", "😫",
+            "😩", "😢", "😭", "😤", "😠", "😡", "😳", "😱", "😨",
+            // People & Body
+            "👋", "✋", "🖐️", "👌", "✌️", "👈", "👉", "👆",
+            "👇", "☝️", "👍", "👎", "✊", "👊", "👏", "🙌", "👐", "🙏", "✍️",
+            "💪", "👂", "🦻", "👃", "👀",
+            // Animals & Nature
+            "🐶", "🐱", "🐭", "🐹", "🐰", "🐻", "🐼", "🐨", "🐯", "🐮", "🐷", "🐸",
+            "🐵", "🙈", "🙉", "🙊", "🐒", "🐔", "🐧", "🐦", "🐤", "🐣", "🐥",
+            "🌵", "🌲", "🌳", "🌴", "🌱", "🌿", "☘️", "🍀", "🍁", "🍂", "🍃", "🌺", "🌻", "🌹",
+            // Food & Drink
+            "🍏", "🍎", "🍐", "🍊", "🍋", "🍌", "🍉", "🍇", "🍓", "🍈", "🍒", "🍑", "🍍",
+            "🍅", "🍆", "🌶️", "🌽",
+            "🍞", "🍳", "🍔", "🍟",
+            // Travel & Places
+            "🚗", "🚕", "🚙", "🚌", "🚎", "🏎️", "🚓", "🚑", "🚒", "🚐", "🚚", "🚛", "🚜",
+            "🚲", "🏍️", "🚨", "🚔", "🚍", "🚘", "🚖", "✈️", "🛫", "🛬", "🛩️", "💺",
+            "🚀", "🚁", "⛵", "🚤", "🛥️", "🛳️", "⛴️", "🚢", "⚓", "⛽", "🚧",
+            // Activities
+            "⚽", "🏀", "🏈", "⚾", "🎾", "🏉", "🎱",
+            "⛳", "🎣", "🎽",
+            // Objects
+            "⌚", "📱", "💻", "⌨️", "🖥️", "🖱️", "🖨️", "🖋️", "✒️", "🔍", "💡", "🔦",
+            "🔬", "🔭", "📚", "📙", "📘", "📗", "📕", "📒", "📔", "📓", "📰",
+            // Symbols
+            "❤️", "💛", "💚", "💙", "💜", "💔", "❣️", "💕", "💞", "💓",
+            "💗", "💖", "💘", "💝", "💟", "☮️", "✝️", "☪️", "🕉️", "☸️", "✡️", "🔯", "🕎", "☯️",
+            "☦️", "⛎", "♈", "♉", "♊", "♋", "♌", "♍", "♎", "♏", "♐", "♑", "♒", "♓", "🆔",
+            // Flags (common subset)
+            "🏁", "🚩", "🎌", "🏴", "🏳️"
+        ];
+        return emojis[Math.floor(Math.random() * emojis.length)];
     }
     generateRandomLifespan() {
         // Random lifespan between 10 and 100
@@ -197,13 +291,14 @@ class Species {
     }
     getStats() {
         return `
-Species: ${this.name} (${this.symbol})
+Species: ${this.name} (${this.emoji || this.symbol})
 Max Lifespan: ${this.maxLifespan}
 Total Born: ${this.totalBorn}
 Total Died: ${this.totalDied}
 Avg Age at Death: ${this.getAverageAgeAtDeath().toFixed(1)}
-Bonded Pairs: ${this.totalBondedPairs}
+Bonded Pairs: ${this.totalBondedPairs - this.totalUnbondedPairs} / ${this.totalBondedPairs}
 Singles: ${this.totalSingles}
+Offspring: ${this.totalOffspring - this.totalOffspringDied} / ${this.totalOffspring}
         `.trim();
     }
     static createMutation(parent1, parent2) {
@@ -211,15 +306,29 @@ Singles: ${this.totalSingles}
         const avgLifespan = Math.floor((parent1.maxLifespan + parent2.maxLifespan) / 2);
         // Create a new symbol by combining the parent symbols
         const newSymbol = String.fromCharCode(Math.floor((parent1.symbol.charCodeAt(0) + parent2.symbol.charCodeAt(0)) / 2));
-        return new Species(newSymbol, avgLifespan);
+        // Create new species with the combined properties
+        const newSpecies = new Species(newSymbol, avgLifespan);
+        // The emoji is already randomly generated in the constructor
+        return newSpecies;
     }
 }
 Species.nextId = 1;
+// UI Base class - Contains core UI functionality and properties
 class UI {
     constructor() {
+        // Game field dimensions
         this.fieldWidth = 80;
         this.fieldHeight = 30;
         this.field = [];
+        // Game statistics
+        this.totalSpeciesGenerated = 0;
+        this.totalSpeciesExtinct = 0;
+        this.totalLifeFormsBorn = 0;
+        this.totalLifeFormsDead = 0;
+        this.totalPairsBorn = 0;
+        this.totalPairsDead = 0;
+        this.totalOffspringBorn = 0;
+        this.totalOffspringDead = 0;
         this.gameField = document.getElementById('game-field');
         this.statsPanel = document.getElementById('stats-panel');
         this.setupPanel = document.getElementById('setup-panel');
@@ -257,150 +366,26 @@ class UI {
     showSetupPanel() {
         this.setupPanel.style.display = 'block';
         this.gameContainer.style.display = 'none';
-        this.pauseResumeButton.style.display = 'none';
-        this.resetButton.style.display = 'none';
     }
     showGamePanel() {
         this.setupPanel.style.display = 'none';
         this.gameContainer.style.display = 'flex';
-        this.pauseResumeButton.style.display = 'inline-block';
-        this.resetButton.style.display = 'inline-block';
         // Clear the event log
         this.eventLog.innerHTML = '';
+        // Reset statistics
+        this.resetStatistics();
         // Trigger resize to ensure proper layout
         this.handleResize();
     }
-    updateGameField(lifeForms) {
-        // Clear the field
-        this.initializeField();
-        // First pass: mark bond connections with +
-        for (const lifeForm of lifeForms) {
-            if (lifeForm.bondedWith) {
-                // Find the midpoint between bonded pairs
-                const midX = Math.floor((lifeForm.x + lifeForm.bondedWith.x) / 2);
-                const midY = Math.floor((lifeForm.y + lifeForm.bondedWith.y) / 2);
-                // If they're adjacent, place a + between them
-                if (Math.abs(lifeForm.x - lifeForm.bondedWith.x) <= 1 &&
-                    Math.abs(lifeForm.y - lifeForm.bondedWith.y) <= 1 &&
-                    midX >= 0 && midX < this.fieldWidth &&
-                    midY >= 0 && midY < this.fieldHeight) {
-                    this.field[midY][midX] = '+';
-                }
-            }
-            // Also connect offspring to parents
-            if (lifeForm.state === LifeFormState.BONDED_TO_PARENT && lifeForm.bondedToParent) {
-                // Find the midpoint between offspring and parent
-                const midX = Math.floor((lifeForm.x + lifeForm.bondedToParent.x) / 2);
-                const midY = Math.floor((lifeForm.y + lifeForm.bondedToParent.y) / 2);
-                // If they're adjacent, place a + between them
-                if (Math.abs(lifeForm.x - lifeForm.bondedToParent.x) <= 1 &&
-                    Math.abs(lifeForm.y - lifeForm.bondedToParent.y) <= 1 &&
-                    midX >= 0 && midX < this.fieldWidth &&
-                    midY >= 0 && midY < this.fieldHeight) {
-                    this.field[midY][midX] = '+';
-                }
-            }
-        }
-        // Second pass: place life forms
-        for (const lifeForm of lifeForms) {
-            if (lifeForm.x >= 0 && lifeForm.x < this.fieldWidth &&
-                lifeForm.y >= 0 && lifeForm.y < this.fieldHeight) {
-                this.field[lifeForm.y][lifeForm.x] = lifeForm.species.symbol;
-            }
-        }
-        // Render the field
-        let html = '';
-        for (let y = 0; y < this.fieldHeight; y++) {
-            for (let x = 0; x < this.fieldWidth; x++) {
-                // Find the life form at this position to get its color
-                const lifeForm = lifeForms.find(lf => lf.x === x && lf.y === y);
-                if (lifeForm) {
-                    // Wrap life form symbol in square brackets
-                    html += `<span style="color: ${lifeForm.getColor()}">[${this.field[y][x]}]</span>`;
-                }
-                else if (this.field[y][x] === '+') {
-                    // Show connection symbol in white
-                    html += `<span style="color: white">${this.field[y][x]}</span>`;
-                }
-                else {
-                    html += this.field[y][x];
-                }
-            }
-            html += '<br>';
-        }
-        this.gameField.innerHTML = html;
-    }
-    updateStats(species, totalCycles) {
-        // Update the right panel with detailed species stats
-        let statsHtml = '';
-        for (const sp of species) {
-            statsHtml += `<div class="species-stats">
-                <h3>${sp.name} <span style="color: white">${sp.symbol}</span></h3>
-                <p>Max Lifespan: ${sp.maxLifespan}</p>
-                <p>Total Born: ${sp.totalBorn}</p>
-                <p>Total Died: ${sp.totalDied}</p>
-                <p>Alive: ${sp.totalBorn - sp.totalDied}</p>
-                <p>Avg Age at Death: ${sp.getAverageAgeAtDeath().toFixed(1)}</p>
-                <p>Bonded Pairs: ${sp.totalBondedPairs}</p>
-                <p>Singles: ${sp.totalSingles}</p>
-            </div>`;
-        }
-        const statsContent = document.getElementById('stats-content');
-        statsContent.innerHTML = statsHtml;
-        // Update the left panel with basic game info
-        let gameInfoHtml = `
-            <p><strong>Year / Iteration:</strong> ${totalCycles}</p>
-            <p><strong>Species:</strong></p>
-            <p>- Generated: ${species.length}</p>
-            <p>- Alive: ${species.filter(s => s.totalBorn - s.totalDied > 0).length}</p>
-            <p><strong>Life Forms:</strong></p>
-        `;
-        let totalBorn = 0;
-        let totalAlive = 0;
-        let totalDied = 0;
-        for (const sp of species) {
-            totalBorn += sp.totalBorn;
-            totalDied += sp.totalDied;
-            totalAlive += (sp.totalBorn - sp.totalDied);
-            gameInfoHtml += `<p>${sp.symbol}: ${sp.totalBorn - sp.totalDied} alive</p>`;
-        }
-        gameInfoHtml += `
-            <p><strong>Total Born:</strong> ${totalBorn}</p>
-            <p><strong>Total Alive:</strong> ${totalAlive}</p>
-            <p><strong>Total Died:</strong> ${totalDied}</p>
-        `;
-        const gameInfoContent = document.getElementById('game-info-content');
-        if (gameInfoContent) {
-            gameInfoContent.innerHTML = gameInfoHtml;
-        }
-        else {
-            console.error("Could not find game-info-content element");
-        }
-    }
-    logEvent(message) {
-        if (!this.eventLog) {
-            console.error("Event log element not found");
-            return;
-        }
-        const timestamp = new Date().toLocaleTimeString();
-        const logEntry = document.createElement('div');
-        logEntry.className = 'log-entry';
-        logEntry.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${message}`;
-        this.eventLog.appendChild(logEntry);
-        this.eventLog.scrollTop = this.eventLog.scrollHeight; // Auto-scroll to bottom
-    }
-    showGameOver(species, totalCycles) {
-        let message = `<h2>Game Over</h2>
-                      <p>Total Cycles: ${totalCycles}</p>`;
-        if (species.length === 0) {
-            message += '<p>All species have gone extinct!</p>';
-            this.logEvent("GAME OVER: All species have gone extinct!");
-        }
-        else if (species.length === 1) {
-            message += `<p>Only ${species[0].name} (${species[0].symbol}) survived!</p>`;
-            this.logEvent(`GAME OVER: Only ${species[0].name} (${species[0].symbol}) survived!`);
-        }
-        this.gameField.innerHTML = message;
+    resetStatistics() {
+        this.totalSpeciesGenerated = 0;
+        this.totalSpeciesExtinct = 0;
+        this.totalLifeFormsBorn = 0;
+        this.totalLifeFormsDead = 0;
+        this.totalPairsBorn = 0;
+        this.totalPairsDead = 0;
+        this.totalOffspringBorn = 0;
+        this.totalOffspringDead = 0;
     }
     getFieldDimensions() {
         return [this.fieldWidth, this.fieldHeight];
@@ -418,6 +403,254 @@ class UI {
         }
     }
 }
+UI.prototype.updateGameField = function (lifeForms) {
+    // Clear the field
+    this.initializeField();
+    // First pass: mark bond connections
+    for (const lifeForm of lifeForms) {
+        // Handle bonded pairs with + sign
+        if (lifeForm.bondedWith) {
+            // Find the midpoint between bonded pairs
+            const midX = Math.floor((lifeForm.x + lifeForm.bondedWith.x) / 2);
+            const midY = Math.floor((lifeForm.y + lifeForm.bondedWith.y) / 2);
+            // If they're adjacent, place a + between them
+            if (Math.abs(lifeForm.x - lifeForm.bondedWith.x) <= 1 &&
+                Math.abs(lifeForm.y - lifeForm.bondedWith.y) <= 1 &&
+                midX >= 0 && midX < this.fieldWidth &&
+                midY >= 0 && midY < this.fieldHeight) {
+                this.field[midY][midX] = '+';
+            }
+        }
+        // Handle unbonded pairs with - sign (for one cycle)
+        if (lifeForm.recentlyUnbonded) {
+            const midX = Math.floor((lifeForm.x + lifeForm.recentlyUnbonded.x) / 2);
+            const midY = Math.floor((lifeForm.y + lifeForm.recentlyUnbonded.y) / 2);
+            if (Math.abs(lifeForm.x - lifeForm.recentlyUnbonded.x) <= 1 &&
+                Math.abs(lifeForm.y - lifeForm.recentlyUnbonded.y) <= 1 &&
+                midX >= 0 && midX < this.fieldWidth &&
+                midY >= 0 && midY < this.fieldHeight) {
+                this.field[midY][midX] = '-';
+            }
+        }
+        // Connect offspring to parents with + sign
+        if (lifeForm.state === LifeFormState.BONDED_TO_PARENT && lifeForm.bondedToParent) {
+            // Find the midpoint between offspring and parent
+            const midX = Math.floor((lifeForm.x + lifeForm.bondedToParent.x) / 2);
+            const midY = Math.floor((lifeForm.y + lifeForm.bondedToParent.y) / 2);
+            // If they're adjacent, place a + between them
+            if (Math.abs(lifeForm.x - lifeForm.bondedToParent.x) <= 1 &&
+                Math.abs(lifeForm.y - lifeForm.bondedToParent.y) <= 1 &&
+                midX >= 0 && midX < this.fieldWidth &&
+                midY >= 0 && midY < this.fieldHeight) {
+                this.field[midY][midX] = '+';
+            }
+        }
+    }
+    // Second pass: place life forms
+    for (const lifeForm of lifeForms) {
+        if (lifeForm.x >= 0 && lifeForm.x < this.fieldWidth &&
+            lifeForm.y >= 0 && lifeForm.y < this.fieldHeight) {
+            // Use emoji instead of ASCII characters
+            this.field[lifeForm.y][lifeForm.x] = lifeForm.species.emoji || lifeForm.species.symbol;
+        }
+    }
+    // Render the field
+    let html = '';
+    for (let y = 0; y < this.fieldHeight; y++) {
+        for (let x = 0; x < this.fieldWidth; x++) {
+            // Find the life form at this position to get its color
+            const lifeForm = lifeForms.find(lf => lf.x === x && lf.y === y);
+            if (lifeForm) {
+                // Display life form emoji without square brackets
+                html += `<span style="color: ${lifeForm.getColor()}">${this.field[y][x]}</span>`;
+            }
+            else if (this.field[y][x] === '+') {
+                // Show connection symbol in white with bold styling
+                html += `<span class="connection-symbol" style="color: white">+</span>`;
+            }
+            else if (this.field[y][x] === '-') {
+                // Show unbonding symbol in red with bold styling
+                html += `<span class="connection-symbol" style="color: red">-</span>`;
+            }
+            else {
+                html += this.field[y][x];
+            }
+        }
+        html += '<br>';
+    }
+    this.gameField.innerHTML = html;
+};
+// Initialize the allSpecies array
+UI.prototype.allSpecies = [];
+// Update both left and right panels with statistics
+UI.prototype.updateStats = function (species, totalCycles) {
+    // Keep track of all species, including extinct ones
+    for (const sp of species) {
+        if (!this.allSpecies.some(existingSp => existingSp.id === sp.id)) {
+            this.allSpecies.push(sp);
+        }
+    }
+    // Update left panel with game-wide statistics
+    this.updateGameStats(species, totalCycles);
+    // Update right panel with per-species statistics (including extinct ones)
+    this.updateSpeciesStats(this.allSpecies);
+};
+// Update left panel with game-wide statistics
+UI.prototype.updateGameStats = function (species, totalCycles) {
+    // Count active species (those with living life forms)
+    const activeSpecies = species.filter(s => s.totalBorn - s.totalDied > 0).length;
+    // Calculate totals
+    let totalBorn = 0;
+    let totalDied = 0;
+    let totalAlive = 0;
+    let totalPairsBorn = 0;
+    let totalPairsDead = 0;
+    let totalPairsActive = 0;
+    let totalOffspringBorn = 0;
+    let totalOffspringDead = 0;
+    let totalOffspringActive = 0;
+    for (const sp of species) {
+        totalBorn += sp.totalBorn;
+        totalDied += sp.totalDied;
+        totalAlive += (sp.totalBorn - sp.totalDied);
+        totalPairsBorn += sp.totalBondedPairs;
+        totalPairsDead += sp.totalUnbondedPairs;
+        totalPairsActive += (sp.totalBondedPairs - sp.totalUnbondedPairs);
+        totalOffspringBorn += sp.totalOffspring;
+        totalOffspringDead += sp.totalOffspringDied;
+        totalOffspringActive += (sp.totalOffspring - sp.totalOffspringDied);
+    }
+    // Update statistics tracking
+    this.totalSpeciesGenerated = this.allSpecies.length;
+    this.totalSpeciesExtinct = this.totalSpeciesGenerated - activeSpecies;
+    this.totalLifeFormsBorn = totalBorn;
+    this.totalLifeFormsDead = totalDied;
+    this.totalPairsBorn = totalPairsBorn;
+    this.totalPairsDead = totalPairsDead;
+    this.totalOffspringBorn = totalOffspringBorn;
+    this.totalOffspringDead = totalOffspringDead;
+    // Create HTML for left panel
+    let gameInfoHtml = `
+        <p><strong>Year / Iteration:</strong> ${totalCycles}</p>
+        <p><strong>Species:</strong></p>
+        <ul>
+            <li>Generated: ${this.totalSpeciesGenerated}</li>
+            <li>Extinct: ${this.totalSpeciesExtinct}</li>
+            <li>Total Active: ${activeSpecies}</li>
+        </ul>
+        <p><strong>Life Forms:</strong></p>
+        <ul>
+            <li>Born: ${this.totalLifeFormsBorn}</li>
+            <li>Dead: ${this.totalLifeFormsDead}</li>
+            <li>Total Alive: ${totalAlive}</li>
+        </ul>
+        <p><strong>Pairs:</strong></p>
+        <ul>
+            <li>Born: ${this.totalPairsBorn}</li>
+            <li>Dead: ${this.totalPairsDead}</li>
+            <li>Total Active: ${totalPairsActive}</li>
+        </ul>
+        <p><strong>Offspring:</strong></p>
+        <ul>
+            <li>Born: ${this.totalOffspringBorn}</li>
+            <li>Dead: ${this.totalOffspringDead}</li>
+            <li>Total Active: ${totalOffspringActive}</li>
+        </ul>
+    `;
+    const gameInfoContent = document.getElementById('game-info-content');
+    if (gameInfoContent) {
+        gameInfoContent.innerHTML = gameInfoHtml;
+    }
+    else {
+        console.error("Could not find game-info-content element");
+    }
+};
+// Update right panel with per-species statistics
+UI.prototype.updateSpeciesStats = function (allSpecies) {
+    // Create table for species statistics
+    let statsHtml = `
+        <table class="species-table">
+            <thead>
+                <tr>
+                    <th>Species</th>
+                    <th>Born</th>
+                    <th>Dead</th>
+                    <th>Alive</th>
+                    <th>Pairs</th>
+                    <th>Offspring</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+    for (const sp of allSpecies) {
+        const alive = sp.totalBorn - sp.totalDied;
+        const isExtinct = alive <= 0;
+        const bondedPercent = sp.totalBondedPairs > 0
+            ? Math.round((sp.totalBondedPairs - sp.totalUnbondedPairs) / sp.totalBondedPairs * 100)
+            : 0;
+        const offspringPercent = sp.totalOffspring > 0
+            ? Math.round((sp.totalOffspring - sp.totalOffspringDied) / sp.totalOffspring * 100)
+            : 0;
+        statsHtml += `
+            <tr${isExtinct ? ' class="extinct"' : ''}>
+                <td>
+                    <strong>${sp.name}</strong> 
+                    <span style="color: white">${sp.emoji || sp.symbol}</span>
+                    ${isExtinct ? ' <span class="extinct-label">(Extinct)</span>' : ''}
+                </td>
+                <td>${sp.totalBorn}</td>
+                <td>${sp.totalDied}</td>
+                <td>${alive}</td>
+                <td>${bondedPercent}% bonded</td>
+                <td>${offspringPercent}% alive</td>
+            </tr>
+        `;
+        // Add detailed stats for each species
+        statsHtml += `
+            <tr${isExtinct ? ' class="extinct"' : ''}>
+                <td colspan="6" class="species-details">
+                    <p>Max Lifespan: ${sp.maxLifespan}</p>
+                    <p>Avg Age at Death: ${sp.getAverageAgeAtDeath().toFixed(1)}</p>
+                    <p>Bonded Pairs: ${sp.totalBondedPairs - sp.totalUnbondedPairs} / ${sp.totalBondedPairs}</p>
+                    <p>Singles: ${sp.totalSingles}</p>
+                </td>
+            </tr>
+        `;
+    }
+    statsHtml += `
+            </tbody>
+        </table>
+    `;
+    const statsContent = document.getElementById('stats-content');
+    statsContent.innerHTML = statsHtml;
+};
+// Log an event to the event log
+UI.prototype.logEvent = function (message) {
+    if (!this.eventLog) {
+        console.error("Event log element not found");
+        return;
+    }
+    const timestamp = new Date().toLocaleTimeString();
+    const logEntry = document.createElement('div');
+    logEntry.className = 'log-entry';
+    logEntry.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${message}`;
+    this.eventLog.appendChild(logEntry);
+    this.eventLog.scrollTop = this.eventLog.scrollHeight; // Auto-scroll to bottom
+};
+// Show game over message
+UI.prototype.showGameOver = function (species, totalCycles) {
+    let message = `<h2>Game Over</h2>
+                  <p>Total Cycles: ${totalCycles}</p>`;
+    if (species.length === 0) {
+        message += '<p>All species have gone extinct!</p>';
+        this.logEvent("GAME OVER: All species have gone extinct!");
+    }
+    else if (species.length === 1) {
+        message += `<p>Only ${species[0].name} (${species[0].emoji || species[0].symbol}) survived!</p>`;
+        this.logEvent(`GAME OVER: Only ${species[0].name} (${species[0].emoji || species[0].symbol}) survived!`);
+    }
+    this.gameField.innerHTML = message;
+};
 class Game {
     constructor() {
         this.species = [];
@@ -455,7 +688,7 @@ class Game {
         for (let i = 0; i < count; i++) {
             const newSpecies = new Species();
             this.species.push(newSpecies);
-            this.ui.logEvent(`Created ${newSpecies.name} (${newSpecies.symbol}) with max lifespan of ${newSpecies.maxLifespan}`);
+            this.ui.logEvent(`Created ${newSpecies.name} (${newSpecies.emoji || newSpecies.symbol}) with max lifespan of ${newSpecies.maxLifespan}`);
         }
     }
 }
@@ -469,14 +702,17 @@ Game.prototype.placeBondedPairs = function () {
             // Find a random position for the pair
             const x = Math.floor(Math.random() * (this.fieldWidth - 2));
             const y = Math.floor(Math.random() * (this.fieldHeight - 1));
+            // Place the pair horizontally adjacent to each other
             const lifeForm1 = new LifeForm(species, x, y);
             const lifeForm2 = new LifeForm(species, x + 1, y);
-            lifeForm1.bondWith(lifeForm2);
+            // Add them to the life forms array
             this.lifeForms.push(lifeForm1);
             this.lifeForms.push(lifeForm2);
+            // Update species statistics
             species.totalSingles += 2; // They start as singles
-            lifeForm1.bondWith(lifeForm2); // Then bond them
-            this.ui.logEvent(`Created bonded pair of ${species.name} (${species.symbol}) at position (${x},${y})`);
+            // Bond them together
+            lifeForm1.bondWith(lifeForm2);
+            this.ui.logEvent(`Created bonded pair of ${species.name} (${species.emoji || species.symbol}) at position (${x},${y})`);
         }
     }
     this.ui.updateGameField(this.lifeForms);
@@ -487,6 +723,12 @@ Game.prototype.gameLoop = function () {
         return;
     this.totalCycles++;
     this.ui.logEvent(`--- Year / Iteration ${this.totalCycles} ---`);
+    // Clear recently unbonded status from previous cycle
+    for (const lifeForm of this.lifeForms) {
+        lifeForm.clearRecentlyUnbonded();
+    }
+    // Process offspring unbonding from parents
+    this.processOffspringUnbonding();
     // Process births
     this.processBirths();
     // Process mutations
@@ -506,20 +748,40 @@ Game.prototype.gameLoop = function () {
     this.ui.updateGameField(this.lifeForms);
     this.ui.updateStats(this.species, this.totalCycles);
 };
+Game.prototype.processOffspringUnbonding = function () {
+    for (const lifeForm of this.lifeForms) {
+        if (lifeForm.state === LifeFormState.BONDED_TO_PARENT && lifeForm.unbondFromParent()) {
+            // Move to a random location
+            lifeForm.x = Math.floor(Math.random() * this.fieldWidth);
+            lifeForm.y = Math.floor(Math.random() * this.fieldHeight);
+            this.ui.logEvent(`Offspring ${lifeForm.species.emoji || lifeForm.species.symbol} matured and moved to position (${lifeForm.x},${lifeForm.y})`);
+        }
+    }
+};
 Game.prototype.processBirths = function () {
     const newLifeForms = [];
     for (const lifeForm of this.lifeForms) {
         if (lifeForm.canReproduce(this.lifeForms)) {
-            // Create offspring
-            const x = this.findNearbyEmptySpace(lifeForm.x, lifeForm.y);
-            const y = this.findNearbyEmptySpace(lifeForm.y, lifeForm.y);
-            if (x !== -1 && y !== -1) {
-                const offspring = new LifeForm(lifeForm.species, x, y);
-                // Bond offspring to parent for first 20% of life
-                offspring.state = LifeFormState.BONDED_TO_PARENT;
-                offspring.bondedToParent = lifeForm;
+            // Find the midpoint between the bonded pair
+            const midX = Math.floor((lifeForm.x + lifeForm.bondedWith.x) / 2);
+            const midY = Math.floor((lifeForm.y + lifeForm.bondedWith.y) / 2);
+            // Check if the midpoint is empty
+            const midpointEmpty = !this.lifeForms.some(lf => lf.x === midX && lf.y === midY);
+            if (midpointEmpty) {
+                // Create offspring at the midpoint between parents
+                const offspring = lifeForm.createOffspring(midX, midY);
                 newLifeForms.push(offspring);
-                this.ui.logEvent(`${lifeForm.species.name} (${lifeForm.species.symbol}) gave birth at (${x},${y})`);
+                this.ui.logEvent(`${lifeForm.species.name} (${lifeForm.species.emoji || lifeForm.species.symbol}) gave birth at (${midX},${midY})`);
+            }
+            else {
+                // If midpoint is not empty, try to find a nearby empty space
+                const x = this.findNearbyEmptySpace(lifeForm.x, lifeForm.y);
+                const y = this.findNearbyEmptySpace(lifeForm.y, lifeForm.y);
+                if (x !== -1 && y !== -1) {
+                    const offspring = lifeForm.createOffspring(x, y);
+                    newLifeForms.push(offspring);
+                    this.ui.logEvent(`${lifeForm.species.name} (${lifeForm.species.emoji || lifeForm.species.symbol}) gave birth at (${x},${y})`);
+                }
             }
         }
     }
@@ -540,13 +802,26 @@ Game.prototype.processMutations = function () {
                 // Create a new species from mutation
                 const newSpecies = Species.createMutation(lifeForm.species, otherLifeForm.species);
                 this.species.push(newSpecies);
-                // Create a new life form of the mutated species
-                const x = this.findNearbyEmptySpace(lifeForm.x, lifeForm.y);
-                const y = this.findNearbyEmptySpace(lifeForm.y, lifeForm.y);
-                if (x !== -1 && y !== -1) {
-                    const mutatedLifeForm = new LifeForm(newSpecies, x, y);
+                // Calculate the midpoint between the two life forms
+                const midX = Math.floor((lifeForm.x + otherLifeForm.x) / 2);
+                const midY = Math.floor((lifeForm.y + otherLifeForm.y) / 2);
+                // Check if the midpoint is empty
+                const midpointEmpty = !this.lifeForms.some(lf => lf.x === midX && lf.y === midY);
+                if (midpointEmpty) {
+                    // Create a new life form of the mutated species at the midpoint
+                    const mutatedLifeForm = new LifeForm(newSpecies, midX, midY);
                     newLifeForms.push(mutatedLifeForm);
-                    this.ui.logEvent(`MUTATION: ${lifeForm.species.name} (${lifeForm.species.symbol}) and ${otherLifeForm.species.name} (${otherLifeForm.species.symbol}) created new species ${newSpecies.name} (${newSpecies.symbol})`);
+                    this.ui.logEvent(`MUTATION: ${lifeForm.species.name} (${lifeForm.species.emoji || lifeForm.species.symbol}) and ${otherLifeForm.species.name} (${otherLifeForm.species.emoji || otherLifeForm.species.symbol}) created new species ${newSpecies.name} (${newSpecies.emoji || newSpecies.symbol})`);
+                }
+                else {
+                    // Find a nearby empty space if midpoint is occupied
+                    const x = this.findNearbyEmptySpace(lifeForm.x, lifeForm.y);
+                    const y = this.findNearbyEmptySpace(lifeForm.y, lifeForm.y);
+                    if (x !== -1 && y !== -1) {
+                        const mutatedLifeForm = new LifeForm(newSpecies, x, y);
+                        newLifeForms.push(mutatedLifeForm);
+                        this.ui.logEvent(`MUTATION: ${lifeForm.species.name} (${lifeForm.species.emoji || lifeForm.species.symbol}) and ${otherLifeForm.species.name} (${otherLifeForm.species.emoji || otherLifeForm.species.symbol}) created new species ${newSpecies.name} (${newSpecies.emoji || newSpecies.symbol})`);
+                    }
                 }
             }
         }
@@ -562,15 +837,11 @@ Game.prototype.processMovementAndUnbonding = function () {
             processedPairs.add(lifeForm.bondedWith);
             // Check for unbonding
             if (lifeForm.shouldUnbond()) {
+                this.ui.logEvent(`${lifeForm.species.name} (${lifeForm.species.emoji || lifeForm.species.symbol}) pair unbonded`);
+                // Unbond the pair - this will set recentlyUnbonded property
                 lifeForm.unbond();
-                // Move to random positions
-                lifeForm.x = Math.floor(Math.random() * this.fieldWidth);
-                lifeForm.y = Math.floor(Math.random() * this.fieldHeight);
-                if (lifeForm.bondedWith) {
-                    lifeForm.bondedWith.x = Math.floor(Math.random() * this.fieldWidth);
-                    lifeForm.bondedWith.y = Math.floor(Math.random() * this.fieldHeight);
-                }
-                this.ui.logEvent(`${lifeForm.species.name} (${lifeForm.species.symbol}) pair unbonded`);
+                // Keep them adjacent for this cycle with the - symbol between them
+                // They'll move to random positions in the next cycle
             }
             // Check for movement
             else if (lifeForm.shouldMove()) {
@@ -582,12 +853,18 @@ Game.prototype.processMovementAndUnbonding = function () {
                 // Move bonded partner together
                 const newX2 = Math.max(0, Math.min(this.fieldWidth - 1, lifeForm.bondedWith.x + dx));
                 const newY2 = Math.max(0, Math.min(this.fieldHeight - 1, lifeForm.bondedWith.y + dy));
-                this.ui.logEvent(`${lifeForm.species.name} (${lifeForm.species.symbol}) pair moved from (${lifeForm.x},${lifeForm.y}) to (${newX1},${newY1})`);
+                this.ui.logEvent(`${lifeForm.species.name} (${lifeForm.species.emoji || lifeForm.species.symbol}) pair moved from (${lifeForm.x},${lifeForm.y}) to (${newX1},${newY1})`);
                 lifeForm.x = newX1;
                 lifeForm.y = newY1;
                 lifeForm.bondedWith.x = newX2;
                 lifeForm.bondedWith.y = newY2;
             }
+        }
+        else if (lifeForm.recentlyUnbonded) {
+            // Move recently unbonded life forms to random positions
+            lifeForm.x = Math.floor(Math.random() * this.fieldWidth);
+            lifeForm.y = Math.floor(Math.random() * this.fieldHeight);
+            this.ui.logEvent(`${lifeForm.species.name} (${lifeForm.species.emoji || lifeForm.species.symbol}) moved to random position (${lifeForm.x},${lifeForm.y}) after unbonding`);
         }
     }
 };
@@ -601,7 +878,7 @@ Game.prototype.processDeathsAndAging = function () {
         lifeForm.age++;
         // Check if the life form should die
         if (lifeForm.age >= lifeForm.species.maxLifespan || lifeForm.shouldDie()) {
-            this.ui.logEvent(`${lifeForm.species.name} (${lifeForm.species.symbol}) died at age ${lifeForm.age} at position (${lifeForm.x},${lifeForm.y})`);
+            this.ui.logEvent(`${lifeForm.species.name} (${lifeForm.species.emoji || lifeForm.species.symbol}) died at age ${lifeForm.age} at position (${lifeForm.x},${lifeForm.y})`);
             lifeForm.die();
         }
         else {
@@ -611,6 +888,13 @@ Game.prototype.processDeathsAndAging = function () {
     this.lifeForms = survivingLifeForms;
     // Remove species with no life forms
     const beforeCount = this.species.length;
+    const extinctSpecies = this.species.filter(species => !this.lifeForms.some(lifeForm => lifeForm.species.id === species.id));
+    // Update extinct species count
+    if (extinctSpecies.length > 0) {
+        for (const species of extinctSpecies) {
+            this.ui.logEvent(`Species ${species.name} (${species.emoji || species.symbol}) went extinct`);
+        }
+    }
     this.species = this.species.filter(species => this.lifeForms.some(lifeForm => lifeForm.species.id === species.id));
     if (beforeCount > this.species.length) {
         this.ui.logEvent(`${beforeCount - this.species.length} species went extinct`);
@@ -634,12 +918,15 @@ Game.prototype.birthExplosion = function () {
     const newLifeForms = [];
     // Create 5-10 new life forms of the selected species
     const count = Math.floor(Math.random() * 6) + 5;
-    this.ui.logEvent(`BIRTH EXPLOSION: ${randomSpecies.name} (${randomSpecies.symbol}) is experiencing a birth explosion! ${count} new life forms created.`);
+    this.ui.logEvent(`BIRTH EXPLOSION: ${randomSpecies.name} (${randomSpecies.emoji || randomSpecies.symbol}) is experiencing a birth explosion! ${count} new life forms created.`);
     for (let i = 0; i < count; i++) {
         const x = Math.floor(Math.random() * this.fieldWidth);
         const y = Math.floor(Math.random() * this.fieldHeight);
-        const newLifeForm = new LifeForm(randomSpecies, x, y);
-        newLifeForms.push(newLifeForm);
+        // Check if position is empty
+        if (!this.lifeForms.some(lf => lf.x === x && lf.y === y)) {
+            const newLifeForm = new LifeForm(randomSpecies, x, y);
+            newLifeForms.push(newLifeForm);
+        }
     }
     this.lifeForms = [...this.lifeForms, ...newLifeForms];
 };
@@ -652,7 +939,7 @@ Game.prototype.deathEvent = function () {
     const deathRate = Math.random() * 0.3 + 0.5;
     const speciesCount = this.lifeForms.filter(lf => lf.species.id === randomSpecies.id).length;
     let deathCount = 0;
-    this.ui.logEvent(`DEATH EVENT: ${randomSpecies.name} (${randomSpecies.symbol}) is experiencing a mass extinction!`);
+    this.ui.logEvent(`DEATH EVENT: ${randomSpecies.name} (${randomSpecies.emoji || randomSpecies.symbol}) is experiencing a mass extinction!`);
     this.lifeForms = this.lifeForms.filter(lifeForm => {
         if (lifeForm.species.id === randomSpecies.id && Math.random() < deathRate) {
             lifeForm.die();
@@ -661,7 +948,7 @@ Game.prototype.deathEvent = function () {
         }
         return true;
     });
-    this.ui.logEvent(`DEATH EVENT: ${deathCount} out of ${speciesCount} ${randomSpecies.name} (${randomSpecies.symbol}) life forms died`);
+    this.ui.logEvent(`DEATH EVENT: ${deathCount} out of ${speciesCount} ${randomSpecies.name} (${randomSpecies.emoji || randomSpecies.symbol}) life forms died`);
 };
 // This file contains utility methods for the Game class
 // To be included with game_core.ts, game_lifecycle.ts, game_mutations.ts, and game_events.ts

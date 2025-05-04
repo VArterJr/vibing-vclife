@@ -25,15 +25,30 @@ Game.prototype.processMutations = function(): void {
                 const newSpecies = Species.createMutation(lifeForm.species, otherLifeForm.species);
                 this.species.push(newSpecies);
                 
-                // Create a new life form of the mutated species
-                const x = this.findNearbyEmptySpace(lifeForm.x, lifeForm.y);
-                const y = this.findNearbyEmptySpace(lifeForm.y, lifeForm.y);
+                // Calculate the midpoint between the two life forms
+                const midX = Math.floor((lifeForm.x + otherLifeForm.x) / 2);
+                const midY = Math.floor((lifeForm.y + otherLifeForm.y) / 2);
                 
-                if (x !== -1 && y !== -1) {
-                    const mutatedLifeForm = new LifeForm(newSpecies, x, y);
+                // Check if the midpoint is empty
+                const midpointEmpty = !this.lifeForms.some(lf => lf.x === midX && lf.y === midY);
+                
+                if (midpointEmpty) {
+                    // Create a new life form of the mutated species at the midpoint
+                    const mutatedLifeForm = new LifeForm(newSpecies, midX, midY);
                     newLifeForms.push(mutatedLifeForm);
                     
-                    this.ui.logEvent(`MUTATION: ${lifeForm.species.name} (${lifeForm.species.symbol}) and ${otherLifeForm.species.name} (${otherLifeForm.species.symbol}) created new species ${newSpecies.name} (${newSpecies.symbol})`);
+                    this.ui.logEvent(`MUTATION: ${lifeForm.species.name} (${lifeForm.species.emoji || lifeForm.species.symbol}) and ${otherLifeForm.species.name} (${otherLifeForm.species.emoji || otherLifeForm.species.symbol}) created new species ${newSpecies.name} (${newSpecies.emoji || newSpecies.symbol})`);
+                } else {
+                    // Find a nearby empty space if midpoint is occupied
+                    const x = this.findNearbyEmptySpace(lifeForm.x, lifeForm.y);
+                    const y = this.findNearbyEmptySpace(lifeForm.y, lifeForm.y);
+                    
+                    if (x !== -1 && y !== -1) {
+                        const mutatedLifeForm = new LifeForm(newSpecies, x, y);
+                        newLifeForms.push(mutatedLifeForm);
+                        
+                        this.ui.logEvent(`MUTATION: ${lifeForm.species.name} (${lifeForm.species.emoji || lifeForm.species.symbol}) and ${otherLifeForm.species.name} (${otherLifeForm.species.emoji || otherLifeForm.species.symbol}) created new species ${newSpecies.name} (${newSpecies.emoji || newSpecies.symbol})`);
+                    }
                 }
             }
         }
@@ -53,18 +68,13 @@ Game.prototype.processMovementAndUnbonding = function(): void {
             
             // Check for unbonding
             if (lifeForm.shouldUnbond()) {
+                this.ui.logEvent(`${lifeForm.species.name} (${lifeForm.species.emoji || lifeForm.species.symbol}) pair unbonded`);
+                
+                // Unbond the pair - this will set recentlyUnbonded property
                 lifeForm.unbond();
                 
-                // Move to random positions
-                lifeForm.x = Math.floor(Math.random() * this.fieldWidth);
-                lifeForm.y = Math.floor(Math.random() * this.fieldHeight);
-                
-                if (lifeForm.bondedWith) {
-                    lifeForm.bondedWith.x = Math.floor(Math.random() * this.fieldWidth);
-                    lifeForm.bondedWith.y = Math.floor(Math.random() * this.fieldHeight);
-                }
-                
-                this.ui.logEvent(`${lifeForm.species.name} (${lifeForm.species.symbol}) pair unbonded`);
+                // Keep them adjacent for this cycle with the - symbol between them
+                // They'll move to random positions in the next cycle
             }
             // Check for movement
             else if (lifeForm.shouldMove()) {
@@ -79,13 +89,19 @@ Game.prototype.processMovementAndUnbonding = function(): void {
                 const newX2 = Math.max(0, Math.min(this.fieldWidth - 1, lifeForm.bondedWith.x + dx));
                 const newY2 = Math.max(0, Math.min(this.fieldHeight - 1, lifeForm.bondedWith.y + dy));
                 
-                this.ui.logEvent(`${lifeForm.species.name} (${lifeForm.species.symbol}) pair moved from (${lifeForm.x},${lifeForm.y}) to (${newX1},${newY1})`);
+                this.ui.logEvent(`${lifeForm.species.name} (${lifeForm.species.emoji || lifeForm.species.symbol}) pair moved from (${lifeForm.x},${lifeForm.y}) to (${newX1},${newY1})`);
                 
                 lifeForm.x = newX1;
                 lifeForm.y = newY1;
                 lifeForm.bondedWith.x = newX2;
                 lifeForm.bondedWith.y = newY2;
             }
+        } else if (lifeForm.recentlyUnbonded) {
+            // Move recently unbonded life forms to random positions
+            lifeForm.x = Math.floor(Math.random() * this.fieldWidth);
+            lifeForm.y = Math.floor(Math.random() * this.fieldHeight);
+            
+            this.ui.logEvent(`${lifeForm.species.name} (${lifeForm.species.emoji || lifeForm.species.symbol}) moved to random position (${lifeForm.x},${lifeForm.y}) after unbonding`);
         }
     }
 };
